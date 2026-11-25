@@ -25,10 +25,18 @@ def run(db,x):
   if not resource or resource['namespace']!=x['namespace']:return {'decision':'unknown_resource'}
   db.execute('INSERT INTO orphans VALUES(?,?,?,?,?)',(x['id'],x['resource'],x['namespace'],'quarantined',None))
   return {'decision':'quarantined'}
+ if op=='proof':
+  r=one(db,'SELECT * FROM resources WHERE id=?',(x['resource'],))
+  if not r or x['generation']!=r['generation'] or x['issuer']!='platform' or x['valid_until']<=x['at']:
+   return {'decision':'invalid_ownership_attestation'}
+  db.execute('INSERT INTO ownership_proofs VALUES(?,?,?,?,?,?)',(x['id'],r['id'],x['team'],r['generation'],x['issuer'],x['valid_until']))
+  return {'decision':'attested'}
  if op=='claim':
   o=one(db,"SELECT * FROM orphans WHERE id=? AND status='quarantined'",(x['id'],))
   r=one(db,'SELECT * FROM resources WHERE id=?',(o['resource'],)) if o else None
-  if not r or x['proof']!=r['fingerprint'] or not x['owner']:return {'decision':'invalid_ownership_proof'}
+  proof=one(db,'SELECT * FROM ownership_proofs WHERE id=?',(x['proof'],))
+  if not r or not proof or proof['resource']!=r['id'] or proof['team']!=x['owner'] or proof['generation']!=r['generation'] or proof['valid_until']<x['at']:
+   return {'decision':'invalid_ownership_proof'}
   db.execute("UPDATE orphans SET status='claimed',proof=? WHERE id=?",(x['proof'],x['id']))
   db.execute('UPDATE resources SET owner=? WHERE id=?',(x['owner'],r['id']))
   return {'decision':'claimed'}

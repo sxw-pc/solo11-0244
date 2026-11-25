@@ -56,10 +56,12 @@ def run(db,x):
   lease=active_lease(db,t['namespace'],x['at'])
   if not lease or lease['generation']!=t['lease_generation'] or frozen(db,t['namespace']):return {'decision':'tenure_changed'}
   snapshot={a['resource']:a['generation'] for a in rows(db,'SELECT * FROM transfer_assets WHERE transfer=?',(x['id'],))}
-  live={a['id']:a['generation'] for a in rows(db,"SELECT * FROM resources WHERE namespace=? AND status='active'",(t['namespace'],))}
-  if snapshot!=live or one(db,"SELECT id FROM orphans WHERE namespace=? AND status='quarantined'",(t['namespace'],)):
+  assets=rows(db,"SELECT * FROM resources WHERE namespace=? AND status='active'",(t['namespace'],))
+  live={a['id']:a['generation'] for a in assets}
+  if snapshot!=live or any(a['owner']!=t['from_team'] for a in assets) or one(db,"SELECT id FROM orphans WHERE namespace=? AND status='quarantined'",(t['namespace'],)):
    return {'decision':'inventory_changed'}
   db.execute('UPDATE leases SET holder=?,generation=generation+1 WHERE id=?',(t['to_team'],lease['id']))
+  db.execute("UPDATE approvals SET status='stale' WHERE lease=? AND status='active'",(lease['id'],))
   db.execute("UPDATE resources SET owner=? WHERE namespace=? AND status='active'",(t['to_team'],t['namespace']))
   db.execute("UPDATE transfers SET status='complete' WHERE id=?",(x['id'],))
   db.execute("UPDATE escrows SET status='closed' WHERE id=?",(x['id'],))

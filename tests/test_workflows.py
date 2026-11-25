@@ -47,6 +47,7 @@ class TenureTests(unittest.TestCase):
   self.assertEqual(one(self.db,'SELECT owner FROM resources WHERE id=?',('r1',))['owner'],'team-b')
   self.assertEqual(self.step('tenure',op='write',id='w2',namespace='ns',team='team-a',generation=3,resource='r2',at=20)['decision'],'write_denied')
   self.assertEqual(self.step('tenure',op='write',id='w3',namespace='ns',team='team-b',generation=3,resource='r2',at=20)['decision'],'written')
+  self.assertEqual(self.step('tenure',op='renew',id='lease-a',generation=4,at=21,expires=90)['decision'],'missing_two_approvals')
  def test_platform_and_liability_receipts_are_required(self):
   self.base();self.step('transfer',op='propose',id='t',namespace='ns',from_team='team-a',to_team='team-b',at=12,deadline=40)
   self.step('transfer',op='accept',id='t',receipt='a1',team='team-a',actor='alice',role='outgoing',at=13)
@@ -54,12 +55,26 @@ class TenureTests(unittest.TestCase):
   self.step('transfer',op='liability',id='l',transfer='t',kind='billing',amount=100)
   self.assertEqual(self.step('transfer',op='accept_liability',id='l',receipt='bad',team='team-a',actor='alice',at=15)['decision'],'unauthorized_liability_acceptance')
   self.assertEqual(self.step('transfer',op='escrow',id='t',at=16)['decision'],'missing_parties')
+ def test_third_team_orphan_claim_cannot_be_overwritten_by_transfer(self):
+  self.base()
+  self.step('transfer',op='propose',id='t',namespace='ns',from_team='team-a',to_team='team-b',at=12,deadline=40)
+  for team,actor,role in [('team-a','alice','outgoing'),('team-b','bob','incoming'),('platform','operator','platform')]:
+   self.step('transfer',op='accept',id='t',receipt='a-'+team,team=team,actor=actor,role=role,at=13)
+  for kind in ('billing','alert'):
+   self.step('transfer',op='liability',id=kind,transfer='t',kind=kind,amount=1)
+   self.step('transfer',op='accept_liability',id=kind,receipt='lr-'+kind,team='team-b',actor='bob',at=14)
+  self.step('transfer',op='escrow',id='t',at=15)
+  self.step('cleanup',op='discover',id='o',resource='r1',namespace='ns')
+  self.step('cleanup',op='proof',id='proof-c',resource='r1',team='team-c',generation=1,issuer='platform',valid_until=30,at=15)
+  self.step('cleanup',op='claim',id='o',proof='proof-c',owner='team-c',at=16)
+  self.assertEqual(self.step('transfer',op='complete',id='t',at=16)['decision'],'inventory_changed')
  def test_orphan_and_finalizer_block_closure(self):
   self.base();self.fixture('transfer','transfer_normal.json')
   self.step('cleanup',op='discover',id='o',resource='r1',namespace='ns')
   self.assertEqual(self.step('cleanup',op='close',id='c',namespace='ns',uid='ns-u1',at=80)['decision'],'cleanup_incomplete')
-  self.assertEqual(self.step('cleanup',op='claim',id='o',proof='wrong',owner='team-b')['decision'],'invalid_ownership_proof')
-  self.assertEqual(self.step('cleanup',op='claim',id='o',proof='fp1',owner='team-b')['decision'],'claimed')
+  self.assertEqual(self.step('cleanup',op='claim',id='o',proof='wrong',owner='team-b',at=70)['decision'],'invalid_ownership_proof')
+  self.step('cleanup',op='proof',id='proof-b',resource='r1',team='team-b',generation=1,issuer='platform',valid_until=100,at=70)
+  self.assertEqual(self.step('cleanup',op='claim',id='o',proof='proof-b',owner='team-b',at=71)['decision'],'claimed')
   self.assertEqual(self.step('cleanup',op='delete',id='d',resource='r1',generation=1,at=81)['decision'],'deleted')
   self.assertEqual(self.step('cleanup',op='close',id='c',namespace='ns',uid='ns-u1',at=82)['decision'],'closed')
  def test_all_fixtures_and_replay(self):

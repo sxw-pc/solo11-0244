@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS acceptances(id TEXT PRIMARY KEY,transfer TEXT,team TE
 CREATE TABLE IF NOT EXISTS escrows(id TEXT PRIMARY KEY,transfer TEXT,until_ts INTEGER,status TEXT);
 CREATE TABLE IF NOT EXISTS resources(id TEXT PRIMARY KEY,namespace TEXT,fingerprint TEXT,generation INTEGER,owner TEXT,status TEXT);
 CREATE TABLE IF NOT EXISTS orphans(id TEXT PRIMARY KEY,resource TEXT,namespace TEXT,status TEXT,proof TEXT);
+CREATE TABLE IF NOT EXISTS ownership_proofs(id TEXT PRIMARY KEY,resource TEXT,team TEXT,generation INTEGER,issuer TEXT,valid_until INTEGER);
 CREATE TABLE IF NOT EXISTS finalizers(id TEXT PRIMARY KEY,namespace TEXT,resource TEXT,status TEXT);
 CREATE TABLE IF NOT EXISTS deletions(id TEXT PRIMARY KEY,resource TEXT,generation INTEGER,at INTEGER,status TEXT);
 CREATE TABLE IF NOT EXISTS closures(id TEXT PRIMARY KEY,namespace TEXT,uid TEXT,at INTEGER,status TEXT);
