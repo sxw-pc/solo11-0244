@@ -29,9 +29,10 @@ class TenureTests(unittest.TestCase):
   self.step('cleanup',op='resource',id='r2',namespace='ns',fingerprint='fp2',generation=1,owner='team-a',at=13)
   self.step('transfer',op='accept',id='t',receipt='a1',team='team-a',actor='alice',role='outgoing',at=13)
   self.step('transfer',op='accept',id='t',receipt='a2',team='team-b',actor='bob',role='incoming',at=14)
+  self.step('transfer',op='accept',id='t',receipt='a3',team='platform',actor='operator',role='platform',at=14)
   for kind in ('billing','alert'):
    self.step('transfer',op='liability',id=kind,transfer='t',kind=kind,amount=1)
-   self.step('transfer',op='accept_liability',id=kind)
+   self.step('transfer',op='accept_liability',id=kind,receipt='lr-'+kind,team='team-b',actor='bob',at=15)
   self.step('transfer',op='escrow',id='t',at=15)
   self.assertEqual(self.step('transfer',op='complete',id='t',at=16)['decision'],'inventory_changed')
  def test_liability_and_distinct_acceptors(self):
@@ -46,6 +47,13 @@ class TenureTests(unittest.TestCase):
   self.assertEqual(one(self.db,'SELECT owner FROM resources WHERE id=?',('r1',))['owner'],'team-b')
   self.assertEqual(self.step('tenure',op='write',id='w2',namespace='ns',team='team-a',generation=3,resource='r2',at=20)['decision'],'write_denied')
   self.assertEqual(self.step('tenure',op='write',id='w3',namespace='ns',team='team-b',generation=3,resource='r2',at=20)['decision'],'written')
+ def test_platform_and_liability_receipts_are_required(self):
+  self.base();self.step('transfer',op='propose',id='t',namespace='ns',from_team='team-a',to_team='team-b',at=12,deadline=40)
+  self.step('transfer',op='accept',id='t',receipt='a1',team='team-a',actor='alice',role='outgoing',at=13)
+  self.step('transfer',op='accept',id='t',receipt='a2',team='team-b',actor='bob',role='incoming',at=14)
+  self.step('transfer',op='liability',id='l',transfer='t',kind='billing',amount=100)
+  self.assertEqual(self.step('transfer',op='accept_liability',id='l',receipt='bad',team='team-a',actor='alice',at=15)['decision'],'unauthorized_liability_acceptance')
+  self.assertEqual(self.step('transfer',op='escrow',id='t',at=16)['decision'],'missing_parties')
  def test_orphan_and_finalizer_block_closure(self):
   self.base();self.fixture('transfer','transfer_normal.json')
   self.step('cleanup',op='discover',id='o',resource='r1',namespace='ns')

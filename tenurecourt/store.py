@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS writes(id TEXT PRIMARY KEY,namespace TEXT,lease_gener
 CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY,namespace TEXT,from_team TEXT,to_team TEXT,lease_generation INTEGER,status TEXT,deadline INTEGER);
 CREATE TABLE IF NOT EXISTS transfer_assets(transfer TEXT,resource TEXT,generation INTEGER,PRIMARY KEY(transfer,resource));
 CREATE TABLE IF NOT EXISTS liabilities(id TEXT PRIMARY KEY,transfer TEXT,kind TEXT,amount INTEGER,status TEXT);
+CREATE TABLE IF NOT EXISTS liability_receipts(id TEXT PRIMARY KEY,liability TEXT,team TEXT,actor TEXT,at INTEGER);
 CREATE TABLE IF NOT EXISTS acceptances(id TEXT PRIMARY KEY,transfer TEXT,team TEXT,actor TEXT,role TEXT,at INTEGER);
 CREATE TABLE IF NOT EXISTS escrows(id TEXT PRIMARY KEY,transfer TEXT,until_ts INTEGER,status TEXT);
 CREATE TABLE IF NOT EXISTS resources(id TEXT PRIMARY KEY,namespace TEXT,fingerprint TEXT,generation INTEGER,owner TEXT,status TEXT);

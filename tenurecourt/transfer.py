@@ -21,12 +21,19 @@ def run(db,x):
  if op=='accept_liability':
   item=one(db,'SELECT * FROM liabilities WHERE id=?',(x['id'],))
   if not item:return {'decision':'unknown_liability'}
+  t=one(db,'SELECT * FROM transfers WHERE id=?',(item['transfer'],))
+  acceptance=one(db,'SELECT * FROM acceptances WHERE transfer=? AND team=? AND actor=?',(t['id'],t['to_team'],x.get('actor')))
+  if x.get('team')!=t['to_team'] or not acceptance or x['at']>t['deadline']:
+   return {'decision':'unauthorized_liability_acceptance'}
+  db.execute('INSERT INTO liability_receipts VALUES(?,?,?,?,?)',(x['receipt'],item['id'],x['team'],x['actor'],x['at']))
   db.execute("UPDATE liabilities SET status='accepted' WHERE id=?",(x['id'],))
   return {'decision':'accepted'}
  if op=='accept':
   t=one(db,'SELECT * FROM transfers WHERE id=?',(x['id'],))
-  if not t or t['status']!='proposed' or x['at']>t['deadline'] or x['team'] not in (t['from_team'],t['to_team']):
+  if not t or t['status']!='proposed' or x['at']>t['deadline'] or x['team'] not in (t['from_team'],t['to_team'],'platform'):
    return {'decision':'acceptance_invalid'}
+  expected_role='platform' if x['team']=='platform' else 'outgoing' if x['team']==t['from_team'] else 'incoming'
+  if x['role']!=expected_role:return {'decision':'role_mismatch'}
   old=one(db,'SELECT * FROM acceptances WHERE transfer=? AND team=?',(x['id'],x['team']))
   if old:return {'decision':'reused' if old['actor']==x['actor'] else 'team_acceptance_conflict'}
   db.execute('INSERT INTO acceptances VALUES(?,?,?,?,?,?)',(x['receipt'],x['id'],x['team'],x['actor'],x['role'],x['at']))
@@ -35,7 +42,7 @@ def run(db,x):
   t=one(db,'SELECT * FROM transfers WHERE id=?',(x['id'],))
   if not t or t['status']!='proposed' or x['at']>t['deadline']:return {'decision':'not_escrowable'}
   a=rows(db,'SELECT * FROM acceptances WHERE transfer=?',(x['id'],))
-  if {t['from_team'],t['to_team']}-{v['team'] for v in a} or len({v['actor'] for v in a})<2:
+  if {t['from_team'],t['to_team'],'platform'}-{v['team'] for v in a} or len({v['actor'] for v in a})<3:
    return {'decision':'missing_parties'}
   kinds={l['kind'] for l in rows(db,"SELECT * FROM liabilities WHERE transfer=? AND status='accepted'",(x['id'],))}
   if not {'billing','alert'}.issubset(kinds) or one(db,"SELECT id FROM liabilities WHERE transfer=? AND status!='accepted'",(x['id'],)):
