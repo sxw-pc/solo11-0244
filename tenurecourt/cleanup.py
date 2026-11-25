@@ -3,6 +3,13 @@ from .tenure import active_lease,frozen
 
 def run(db,x):
  op=x['op']
+ if op=='reappear':
+  old=one(db,'SELECT * FROM resources WHERE id=?',(x['id'],))
+  if not old or old['status']!='deleted' or x['generation']<=old['generation']:
+   return {'decision':'stale_reappearance'}
+  db.execute("UPDATE resources SET fingerprint=?,generation=?,owner='unknown',status='active' WHERE id=?",(x['fingerprint'],x['generation'],x['id']))
+  db.execute('INSERT INTO orphans VALUES(?,?,?,?,?)',(f"reappear-{x['id']}-{x['generation']}",x['id'],old['namespace'],'quarantined',None))
+  return {'decision':'quarantined_reappearance'}
  if op=='resource':
   n=one(db,'SELECT * FROM namespaces WHERE id=?',(x['namespace'],))
   if not n or n['status']!='open':return {'decision':'namespace_unavailable'}

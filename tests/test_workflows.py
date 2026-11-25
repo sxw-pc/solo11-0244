@@ -57,4 +57,9 @@ class TenureTests(unittest.TestCase):
  def test_all_fixtures_and_replay(self):
   for sub,name in [('tenure','tenure_normal.json'),('cleanup','cleanup_normal.json'),('transfer','transfer_normal.json'),('tenure','tenure_failure.json'),('transfer','transfer_failure.json'),('cleanup','cleanup_failure.json')]:self.fixture(sub,name)
   self.assertTrue(replay(str(self.path))['verified'])
+ def test_deleted_resource_reappearance_blocks_close(self):
+  self.base();self.fixture('transfer','transfer_normal.json')
+  self.step('cleanup',op='delete',id='d',resource='r1',generation=1,at=70)
+  self.assertEqual(self.step('cleanup',op='reappear',id='r1',generation=2,fingerprint='fp2')['decision'],'quarantined_reappearance')
+  self.assertEqual(self.step('cleanup',op='close',id='c',namespace='ns',uid='ns-u1',at=80)['decision'],'cleanup_incomplete')
 if __name__=='__main__':unittest.main()
