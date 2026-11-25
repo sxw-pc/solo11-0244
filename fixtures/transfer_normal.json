@@ -1,0 +1,11 @@
+[
+ {"op":"propose","id":"tr1","namespace":"ns","from_team":"team-a","to_team":"team-b","at":12,"deadline":40},
+ {"op":"liability","id":"li1","transfer":"tr1","kind":"billing","amount":100},
+ {"op":"accept_liability","id":"li1"},
+ {"op":"liability","id":"li2","transfer":"tr1","kind":"alert","amount":1},
+ {"op":"accept_liability","id":"li2"},
+ {"op":"accept","id":"tr1","receipt":"acc1","team":"team-a","actor":"alice","role":"outgoing","at":13},
+ {"op":"accept","id":"tr1","receipt":"acc2","team":"team-b","actor":"carol","role":"incoming","at":14},
+ {"op":"escrow","id":"tr1","at":15},
+ {"op":"complete","id":"tr1","at":16}
+]

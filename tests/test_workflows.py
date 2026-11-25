@@ -1,0 +1,60 @@
+import json,tempfile,unittest
+from pathlib import Path
+import tenurecourt
+from tenurecourt.store import connect,execute,replay,one
+ROOT=Path(__file__).resolve().parents[1]
+assert Path(tenurecourt.__file__).resolve().is_relative_to(ROOT)
+print('MODULE_PATH',tenurecourt.__file__)
+class TenureTests(unittest.TestCase):
+ def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.path=Path(self.tmp.name)/'x.sqlite';self.db=connect(str(self.path))
+ def tearDown(self):self.db.close();self.tmp.cleanup()
+ def step(self,sub,**x):return execute(self.db,sub,x)
+ def fixture(self,sub,name):
+  xs=json.loads((ROOT/'fixtures'/name).read_text(encoding='utf-8'))
+  return [execute(self.db,sub,x) for x in xs]
+ def base(self):self.fixture('tenure','tenure_normal.json');self.fixture('cleanup','cleanup_normal.json')
+ def test_namespace_recreation_invalidates_lease(self):
+  self.base();self.step('tenure',op='namespace',id='ns',uid='ns-u2',generation=2)
+  self.assertEqual(self.step('tenure',op='write',id='w2',namespace='ns',team='team-a',generation=2,resource='r2',at=20)['decision'],'write_denied')
+ def test_unapproved_holder_takeover_is_rejected(self):
+  self.fixture('tenure','tenure_normal.json')
+  self.assertEqual(self.step('tenure',op='lease',id='stolen',namespace='ns',namespace_uid='ns-u1',holder='team-b',generation=3,start=20,expires=100)['decision'],'holder_takeover_denied')
+ def test_two_role_renewal_and_freeze(self):
+  self.fixture('tenure','tenure_normal.json')
+  self.assertEqual(self.step('tenure',op='renew',id='lease-a',generation=3,at=20,expires=90)['decision'],'renewed')
+  self.step('tenure',op='freeze',id='f1',namespace='ns',generation=1,reason='owner-left')
+  self.assertEqual(self.step('tenure',op='write',id='w2',namespace='ns',team='team-a',generation=3,resource='r2',at=21)['decision'],'write_denied')
+ def test_transfer_snapshot_blocks_new_resource(self):
+  self.base();self.step('transfer',op='propose',id='t',namespace='ns',from_team='team-a',to_team='team-b',at=12,deadline=40)
+  self.step('cleanup',op='resource',id='r2',namespace='ns',fingerprint='fp2',generation=1,owner='team-a',at=13)
+  self.step('transfer',op='accept',id='t',receipt='a1',team='team-a',actor='alice',role='outgoing',at=13)
+  self.step('transfer',op='accept',id='t',receipt='a2',team='team-b',actor='bob',role='incoming',at=14)
+  for kind in ('billing','alert'):
+   self.step('transfer',op='liability',id=kind,transfer='t',kind=kind,amount=1)
+   self.step('transfer',op='accept_liability',id=kind)
+  self.step('transfer',op='escrow',id='t',at=15)
+  self.assertEqual(self.step('transfer',op='complete',id='t',at=16)['decision'],'inventory_changed')
+ def test_liability_and_distinct_acceptors(self):
+  self.base();self.step('transfer',op='propose',id='t',namespace='ns',from_team='team-a',to_team='team-b',at=12,deadline=40)
+  self.step('transfer',op='liability',id='l',transfer='t',kind='billing',amount=100)
+  self.step('transfer',op='accept',id='t',receipt='a1',team='team-a',actor='same',role='outgoing',at=13)
+  self.step('transfer',op='accept',id='t',receipt='a2',team='team-b',actor='same',role='incoming',at=14)
+  self.assertEqual(self.step('transfer',op='escrow',id='t',at=15)['decision'],'missing_parties')
+  self.assertEqual(one(self.db,'SELECT status FROM liabilities WHERE id=?',('l',))['status'],'pending')
+ def test_transfer_changes_lease_holder_and_resource_owner(self):
+  self.base();self.assertEqual(self.fixture('transfer','transfer_normal.json')[-1]['decision'],'transferred')
+  self.assertEqual(one(self.db,'SELECT owner FROM resources WHERE id=?',('r1',))['owner'],'team-b')
+  self.assertEqual(self.step('tenure',op='write',id='w2',namespace='ns',team='team-a',generation=3,resource='r2',at=20)['decision'],'write_denied')
+  self.assertEqual(self.step('tenure',op='write',id='w3',namespace='ns',team='team-b',generation=3,resource='r2',at=20)['decision'],'written')
+ def test_orphan_and_finalizer_block_closure(self):
+  self.base();self.fixture('transfer','transfer_normal.json')
+  self.step('cleanup',op='discover',id='o',resource='r1',namespace='ns')
+  self.assertEqual(self.step('cleanup',op='close',id='c',namespace='ns',uid='ns-u1',at=80)['decision'],'cleanup_incomplete')
+  self.assertEqual(self.step('cleanup',op='claim',id='o',proof='wrong',owner='team-b')['decision'],'invalid_ownership_proof')
+  self.assertEqual(self.step('cleanup',op='claim',id='o',proof='fp1',owner='team-b')['decision'],'claimed')
+  self.assertEqual(self.step('cleanup',op='delete',id='d',resource='r1',generation=1,at=81)['decision'],'deleted')
+  self.assertEqual(self.step('cleanup',op='close',id='c',namespace='ns',uid='ns-u1',at=82)['decision'],'closed')
+ def test_all_fixtures_and_replay(self):
+  for sub,name in [('tenure','tenure_normal.json'),('cleanup','cleanup_normal.json'),('transfer','transfer_normal.json'),('tenure','tenure_failure.json'),('transfer','transfer_failure.json'),('cleanup','cleanup_failure.json')]:self.fixture(sub,name)
+  self.assertTrue(replay(str(self.path))['verified'])
+if __name__=='__main__':unittest.main()

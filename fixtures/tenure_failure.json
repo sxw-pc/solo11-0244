@@ -1,0 +1,4 @@
+[
+ {"op":"freeze","id":"f1","namespace":"ns","generation":1,"reason":"owner-left"},
+ {"op":"write","id":"w2","namespace":"ns","team":"team-b","generation":3,"resource":"r2","at":30}
+]

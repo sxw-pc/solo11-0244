@@ -1,0 +1,5 @@
+[
+ {"op":"resource","id":"r1","namespace":"ns","fingerprint":"fp1","generation":1,"owner":"team-a","at":11},
+ {"op":"finalizer","id":"fin1","resource":"r1"},
+ {"op":"release_finalizer","id":"fin1"}
+]

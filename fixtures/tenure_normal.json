@@ -1,0 +1,8 @@
+[
+ {"op":"namespace","id":"ns","uid":"ns-u1","generation":1},
+ {"op":"lease","id":"lease-a","namespace":"ns","namespace_uid":"ns-u1","holder":"team-a","generation":1,"start":1,"expires":50},
+ {"op":"approval","id":"ap1","lease":"lease-a","actor":"alice","role":"holder","until":50},
+ {"op":"approval","id":"ap2","lease":"lease-a","actor":"bob","role":"budget","until":50},
+ {"op":"renew","id":"lease-a","generation":2,"at":10,"expires":60},
+ {"op":"write","id":"w1","namespace":"ns","team":"team-a","generation":2,"resource":"r1","at":11}
+]

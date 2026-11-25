@@ -1,0 +1,4 @@
+[
+ {"op":"discover","id":"orphan-r1","resource":"r1","namespace":"ns"},
+ {"op":"close","id":"close1","namespace":"ns","uid":"ns-u1","at":80}
+]
