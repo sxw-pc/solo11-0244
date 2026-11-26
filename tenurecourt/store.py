@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS finalizers(id TEXT PRIMARY KEY,namespace TEXT,resourc
 CREATE TABLE IF NOT EXISTS deletions(id TEXT PRIMARY KEY,resource TEXT,generation INTEGER,at INTEGER,status TEXT);
 CREATE TABLE IF NOT EXISTS closures(id TEXT PRIMARY KEY,namespace TEXT,uid TEXT,at INTEGER,status TEXT);
 CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,subsystem TEXT,payload TEXT,result TEXT);
+CREATE TABLE IF NOT EXISTS slot_offers(offer TEXT PRIMARY KEY,rack TEXT,slots INTEGER,expiry INTEGER);
 """
 def connect(path):
  db=sqlite3.connect(path,isolation_level=None);db.row_factory=sqlite3.Row
@@ -35,8 +36,8 @@ def one(db,q,a=()):
  x=db.execute(q,a).fetchone();return dict(x) if x else None
 def rows(db,q,a=()):return [dict(x) for x in db.execute(q,a)]
 def execute(db,subsystem,payload):
- from . import tenure,transfer,cleanup
- fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run}[subsystem]
+ from . import tenure,transfer,cleanup,capacity_procurement
+ fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run,'procurement':capacity_procurement.run}[subsystem]
  with tx(db):
   result=fn(db,payload)
   db.execute('INSERT INTO events(subsystem,payload,result) VALUES(?,?,?)',(subsystem,json.dumps(payload,sort_keys=True,ensure_ascii=False),json.dumps(result,sort_keys=True,ensure_ascii=False)))
