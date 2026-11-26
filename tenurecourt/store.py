@@ -35,8 +35,8 @@ def one(db,q,a=()):
  x=db.execute(q,a).fetchone();return dict(x) if x else None
 def rows(db,q,a=()):return [dict(x) for x in db.execute(q,a)]
 def execute(db,subsystem,payload):
- from . import tenure,transfer,cleanup
- fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run}[subsystem]
+ from . import tenure,transfer,cleanup,personnel_muster
+ fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run,'personnel_muster':personnel_muster.run}[subsystem]
  with tx(db):
   result=fn(db,payload)
   db.execute('INSERT INTO events(subsystem,payload,result) VALUES(?,?,?)',(subsystem,json.dumps(payload,sort_keys=True,ensure_ascii=False),json.dumps(result,sort_keys=True,ensure_ascii=False)))
