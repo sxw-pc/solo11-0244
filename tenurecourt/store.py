@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,subsyste
 """
 def connect(path):
  db=sqlite3.connect(path,isolation_level=None);db.row_factory=sqlite3.Row
- db.execute('PRAGMA busy_timeout=3000');db.executescript(SCHEMA);return db
+ db.execute('PRAGMA busy_timeout=3000');db.executescript(SCHEMA)
+ from .usage_settlement import install as install_usage_settlement
+ install_usage_settlement(db)
+ return db
 @contextmanager
 def tx(db):
  db.execute('BEGIN IMMEDIATE')
@@ -35,8 +38,10 @@ def one(db,q,a=()):
  x=db.execute(q,a).fetchone();return dict(x) if x else None
 def rows(db,q,a=()):return [dict(x) for x in db.execute(q,a)]
 def execute(db,subsystem,payload):
- from . import tenure,transfer,cleanup
- fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run}[subsystem]
+ from . import tenure,transfer,cleanup,usage_settlement
+ fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run,
+     'usage_settlement':usage_settlement.run,'settlement':usage_settlement.run,
+     'billing':usage_settlement.run}[subsystem]
  with tx(db):
   result=fn(db,payload)
   db.execute('INSERT INTO events(subsystem,payload,result) VALUES(?,?,?)',(subsystem,json.dumps(payload,sort_keys=True,ensure_ascii=False),json.dumps(result,sort_keys=True,ensure_ascii=False)))
@@ -45,6 +50,10 @@ def replay(path):
  source=connect(path);target=connect(':memory:');errors=[]
  for i,e in enumerate(rows(source,'SELECT * FROM events ORDER BY seq'),1):
   if execute(target,e['subsystem'],json.loads(e['payload']))!=json.loads(e['result']):errors.append({'step':i})
+ # Settlement commands can also be journaled directly through usage_settlement.run.
+ from . import usage_settlement
+ for e in rows(source,'SELECT payload FROM us_command_journal ORDER BY seq'):
+  usage_settlement.run(target,json.loads(e['payload']))
  names=[x[0] for x in source.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ('events','sqlite_sequence') ORDER BY name")]
  for name in names:
   if [tuple(x) for x in source.execute(f'SELECT * FROM {name} ORDER BY rowid')]!=[tuple(x) for x in target.execute(f'SELECT * FROM {name} ORDER BY rowid')]:errors.append({'table':name})
