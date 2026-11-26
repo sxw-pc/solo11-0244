@@ -2,7 +2,7 @@ import argparse,json
 from pathlib import Path
 from .store import connect,execute,replay
 def main():
- p=argparse.ArgumentParser();p.add_argument('command',choices=['tenure','transfer','cleanup','demo','replay']);p.add_argument('--db',default='demo.sqlite');p.add_argument('--fixture');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['tenure','transfer','cleanup','reappearance','demo','replay']);p.add_argument('--db',default='demo.sqlite');p.add_argument('--fixture');a=p.parse_args()
  if a.command=='replay':
   r=replay(a.db);print(json.dumps(r,ensure_ascii=False));raise SystemExit(0 if r['verified'] else 2)
  db=connect(a.db)

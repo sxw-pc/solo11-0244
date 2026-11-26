@@ -58,7 +58,7 @@ def run(db,x):
   snapshot={a['resource']:a['generation'] for a in rows(db,'SELECT * FROM transfer_assets WHERE transfer=?',(x['id'],))}
   assets=rows(db,"SELECT * FROM resources WHERE namespace=? AND status='active'",(t['namespace'],))
   live={a['id']:a['generation'] for a in assets}
-  if snapshot!=live or any(a['owner']!=t['from_team'] for a in assets) or one(db,"SELECT id FROM orphans WHERE namespace=? AND status='quarantined'",(t['namespace'],)):
+  if snapshot!=live or any(a['owner']!=t['from_team'] for a in assets) or one(db,"SELECT id FROM orphans WHERE namespace=? AND status='quarantined'",(t['namespace'],)) or one(db,"SELECT id FROM reappearance_cases WHERE namespace=? AND status IN ('open','verified')",(t['namespace'],)):
    return {'decision':'inventory_changed'}
   db.execute('UPDATE leases SET holder=?,generation=generation+1 WHERE id=?',(t['to_team'],lease['id']))
   db.execute("UPDATE approvals SET status='stale' WHERE lease=? AND status='active'",(lease['id'],))

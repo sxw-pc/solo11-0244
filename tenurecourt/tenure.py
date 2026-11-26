@@ -52,6 +52,10 @@ def run(db,x):
   lease=active_lease(db,x['namespace'],x['at'])
   if not lease or frozen(db,x['namespace']) or lease['holder']!=x['team'] or lease['generation']!=x['generation']:
    return {'decision':'write_denied'}
+  r=one(db,'SELECT status FROM resources WHERE id=?',(x['resource'],))
+  if r and r['status']!='active':return {'decision':'write_denied'}
+  if one(db,"SELECT id FROM reappearance_cases WHERE resource=? AND status IN ('open','verified')",(x['resource'],)):
+   return {'decision':'write_denied'}
   old=one(db,'SELECT * FROM writes WHERE id=?',(x['id'],))
   if old:return {'decision':'reused' if old['resource']==x['resource'] else 'write_conflict'}
   db.execute('INSERT INTO writes VALUES(?,?,?,?,?)',(x['id'],x['namespace'],lease['generation'],x['resource'],x['at']))

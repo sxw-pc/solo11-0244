@@ -5,11 +5,9 @@ def run(db,x):
  op=x['op']
  if op=='reappear':
   old=one(db,'SELECT * FROM resources WHERE id=?',(x['id'],))
-  if not old or old['status']!='deleted' or x['generation']<=old['generation']:
-   return {'decision':'stale_reappearance'}
-  db.execute("UPDATE resources SET fingerprint=?,generation=?,owner='unknown',status='active' WHERE id=?",(x['fingerprint'],x['generation'],x['id']))
-  db.execute('INSERT INTO orphans VALUES(?,?,?,?,?)',(f"reappear-{x['id']}-{x['generation']}",x['id'],old['namespace'],'quarantined',None))
-  return {'decision':'quarantined_reappearance'}
+  if not old or old['status']!='deleted':return {'decision':'stale_reappearance'}
+  from . import reappearance
+  return reappearance.run(db,{'op':'sighting','id':x.get('sighting',f"reappear-{x['id']}-{x['generation']}"),'resource':x['id'],'generation':x['generation'],'digest':x.get('fingerprint'),'uid':x.get('uid'),'location':x.get('location'),'source':x.get('source','cleanup'),'at':x.get('at',0)})
  if op=='resource':
   n=one(db,'SELECT * FROM namespaces WHERE id=?',(x['namespace'],))
   if not n or n['status']!='open':return {'decision':'namespace_unavailable'}
@@ -63,6 +61,9 @@ def run(db,x):
  if op=='close':
   n=one(db,'SELECT * FROM namespaces WHERE id=?',(x['namespace'],))
   if not n or n['uid']!=x['uid']:return {'decision':'namespace_identity_conflict'}
+  old=one(db,'SELECT * FROM closures WHERE id=?',(x['id'],))
+  if old:return {'decision':'reused' if old['namespace']==x['namespace'] and old['uid']==x['uid'] else 'closure_conflict'}
+  if n['status']=='closed':return {'decision':'already_closed'}
   lease=active_lease(db,x['namespace'],x['at'])
   if lease:return {'decision':'tenure_still_active'}
   if one(db,"SELECT id FROM transfers WHERE namespace=? AND status IN ('proposed','escrow')",(x['namespace'],)):
@@ -70,7 +71,8 @@ def run(db,x):
   pending=rows(db,"SELECT id FROM resources WHERE namespace=? AND status='active'",(x['namespace'],))
   orphans=rows(db,"SELECT id FROM orphans WHERE namespace=? AND status='quarantined'",(x['namespace'],))
   finals=rows(db,"SELECT id FROM finalizers WHERE namespace=? AND status='open'",(x['namespace'],))
-  if pending or orphans or finals:return {'decision':'cleanup_incomplete','resources':[r['id'] for r in pending],'orphans':[o['id'] for o in orphans],'finalizers':[f['id'] for f in finals]}
+  cases=rows(db,"SELECT id FROM reappearance_cases WHERE namespace=? AND status IN ('open','verified')",(x['namespace'],))
+  if pending or orphans or finals or cases:return {'decision':'cleanup_incomplete','resources':[r['id'] for r in pending],'orphans':[o['id'] for o in orphans],'finalizers':[f['id'] for f in finals],'reappearance_cases':[c['id'] for c in cases]}
   db.execute('INSERT INTO closures VALUES(?,?,?,?,?)',(x['id'],x['namespace'],x['uid'],x['at'],'closed'))
   db.execute("UPDATE namespaces SET status='closed' WHERE id=?",(x['namespace'],))
   db.execute("UPDATE leases SET status='expired' WHERE namespace=? AND status='active'",(x['namespace'],))

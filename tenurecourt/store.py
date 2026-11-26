@@ -18,6 +18,13 @@ CREATE TABLE IF NOT EXISTS ownership_proofs(id TEXT PRIMARY KEY,resource TEXT,te
 CREATE TABLE IF NOT EXISTS finalizers(id TEXT PRIMARY KEY,namespace TEXT,resource TEXT,status TEXT);
 CREATE TABLE IF NOT EXISTS deletions(id TEXT PRIMARY KEY,resource TEXT,generation INTEGER,at INTEGER,status TEXT);
 CREATE TABLE IF NOT EXISTS closures(id TEXT PRIMARY KEY,namespace TEXT,uid TEXT,at INTEGER,status TEXT);
+CREATE TABLE IF NOT EXISTS identities(id TEXT PRIMARY KEY,resource TEXT,uid TEXT,digest TEXT,location TEXT,generation INTEGER,source TEXT,at INTEGER);
+CREATE TABLE IF NOT EXISTS sightings(id TEXT PRIMARY KEY,resource TEXT,namespace TEXT,generation INTEGER,digest TEXT,uid TEXT,location TEXT,source TEXT,at INTEGER,case_id TEXT,status TEXT);
+CREATE TABLE IF NOT EXISTS reappearance_cases(id TEXT PRIMARY KEY,resource TEXT,namespace TEXT,deletion TEXT,old_uid TEXT,old_digest TEXT,old_location TEXT,status TEXT,disposition TEXT,lease TEXT,resolution TEXT);
+CREATE TABLE IF NOT EXISTS readbacks(id TEXT PRIMARY KEY,case_id TEXT,uid TEXT,location TEXT,pages_expected INTEGER,pages_present INTEGER,digest TEXT,rollback_source TEXT,endpoint TEXT,at INTEGER,status TEXT);
+CREATE TABLE IF NOT EXISTS dispositions(id TEXT PRIMARY KEY,namespace TEXT,resource TEXT,kind TEXT,customer TEXT,platform TEXT,valid_until INTEGER,at INTEGER);
+CREATE TABLE IF NOT EXISTS signoffs(id TEXT PRIMARY KEY,case_id TEXT,team TEXT,actor TEXT,uid TEXT,decision TEXT,at INTEGER);
+CREATE TABLE IF NOT EXISTS resolutions(id TEXT PRIMARY KEY,case_id TEXT,kind TEXT,uid TEXT,lease TEXT,space TEXT,at INTEGER);
 CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,subsystem TEXT,payload TEXT,result TEXT);
 """
 def connect(path):
@@ -35,8 +42,8 @@ def one(db,q,a=()):
  x=db.execute(q,a).fetchone();return dict(x) if x else None
 def rows(db,q,a=()):return [dict(x) for x in db.execute(q,a)]
 def execute(db,subsystem,payload):
- from . import tenure,transfer,cleanup
- fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run}[subsystem]
+ from . import tenure,transfer,cleanup,reappearance
+ fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run,'reappearance':reappearance.run}[subsystem]
  with tx(db):
   result=fn(db,payload)
   db.execute('INSERT INTO events(subsystem,payload,result) VALUES(?,?,?)',(subsystem,json.dumps(payload,sort_keys=True,ensure_ascii=False),json.dumps(result,sort_keys=True,ensure_ascii=False)))

@@ -83,6 +83,9 @@ class TenureTests(unittest.TestCase):
  def test_deleted_resource_reappearance_blocks_close(self):
   self.base();self.fixture('transfer','transfer_normal.json')
   self.step('cleanup',op='delete',id='d',resource='r1',generation=1,at=70)
-  self.assertEqual(self.step('cleanup',op='reappear',id='r1',generation=2,fingerprint='fp2')['decision'],'quarantined_reappearance')
+  r=self.step('cleanup',op='reappear',id='r1',generation=2,fingerprint='fp2')
+  self.assertEqual(r['decision'],'case_opened')
+  self.assertEqual(one(self.db,'SELECT status FROM resources WHERE id=?',('r1',))['status'],'deleted')
+  self.assertEqual(one(self.db,'SELECT status FROM deletions WHERE id=?',('d',))['status'],'confirmed')
   self.assertEqual(self.step('cleanup',op='close',id='c',namespace='ns',uid='ns-u1',at=80)['decision'],'cleanup_incomplete')
 if __name__=='__main__':unittest.main()
