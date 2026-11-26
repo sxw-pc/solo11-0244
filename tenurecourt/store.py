@@ -18,6 +18,15 @@ CREATE TABLE IF NOT EXISTS ownership_proofs(id TEXT PRIMARY KEY,resource TEXT,te
 CREATE TABLE IF NOT EXISTS finalizers(id TEXT PRIMARY KEY,namespace TEXT,resource TEXT,status TEXT);
 CREATE TABLE IF NOT EXISTS deletions(id TEXT PRIMARY KEY,resource TEXT,generation INTEGER,at INTEGER,status TEXT);
 CREATE TABLE IF NOT EXISTS closures(id TEXT PRIMARY KEY,namespace TEXT,uid TEXT,at INTEGER,status TEXT);
+CREATE TABLE IF NOT EXISTS duty_seats(id TEXT PRIMARY KEY,team TEXT,person TEXT,channel TEXT,address TEXT,backup_person TEXT,backup_channel TEXT,backup_address TEXT,valid_from INTEGER,valid_until INTEGER,status TEXT,successor TEXT);
+CREATE TABLE IF NOT EXISTS duty_scopes(seat TEXT,namespace TEXT,resource TEXT,PRIMARY KEY(seat,namespace,resource));
+CREATE TABLE IF NOT EXISTS incidents(id TEXT PRIMARY KEY,namespace TEXT,resource TEXT,opened_at INTEGER,status TEXT,owner_team TEXT,eta INTEGER,response_path TEXT);
+CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,incident TEXT,seat TEXT,team TEXT,person TEXT,stage TEXT,channel TEXT,address TEXT,address_stale INTEGER,receipt TEXT,corr TEXT,at INTEGER,out_of_order INTEGER,corrects TEXT,status TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_corr ON notifications(corr) WHERE corr IS NOT NULL;
+CREATE TABLE IF NOT EXISTS customer_messages(id TEXT PRIMARY KEY,incident TEXT,kind TEXT,team TEXT,eta INTEGER,body TEXT,at INTEGER,corrects TEXT);
+CREATE TABLE IF NOT EXISTS diagnoses(id TEXT PRIMARY KEY,incident TEXT,seat TEXT,team TEXT,actor TEXT,at INTEGER,findings TEXT);
+CREATE TABLE IF NOT EXISTS emergency_grants(id TEXT PRIMARY KEY,incident TEXT,namespace TEXT,resource TEXT,responder TEXT,commands TEXT,issued_at INTEGER,valid_until INTEGER,status TEXT,evidence TEXT);
+CREATE TABLE IF NOT EXISTS repairs(id TEXT PRIMARY KEY,incident TEXT,namespace TEXT,resource TEXT,team TEXT,actor TEXT,command TEXT,authority TEXT,lease_generation INTEGER,grant_id TEXT,at INTEGER);
 CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,subsystem TEXT,payload TEXT,result TEXT);
 """
 def connect(path):
@@ -35,8 +44,8 @@ def one(db,q,a=()):
  x=db.execute(q,a).fetchone();return dict(x) if x else None
 def rows(db,q,a=()):return [dict(x) for x in db.execute(q,a)]
 def execute(db,subsystem,payload):
- from . import tenure,transfer,cleanup
- fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run}[subsystem]
+ from . import tenure,transfer,cleanup,incident_response
+ fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run,'incident':incident_response.run}[subsystem]
  with tx(db):
   result=fn(db,payload)
   db.execute('INSERT INTO events(subsystem,payload,result) VALUES(?,?,?)',(subsystem,json.dumps(payload,sort_keys=True,ensure_ascii=False),json.dumps(result,sort_keys=True,ensure_ascii=False)))
