@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,subsyste
 """
 def connect(path):
  db=sqlite3.connect(path,isolation_level=None);db.row_factory=sqlite3.Row
- db.execute('PRAGMA busy_timeout=3000');db.executescript(SCHEMA);return db
+ db.execute('PRAGMA busy_timeout=3000');db.executescript(SCHEMA)
+ from .competency_delivery import SCHEMA as COMPETENCY_SCHEMA
+ db.executescript(COMPETENCY_SCHEMA)
+ return db
 @contextmanager
 def tx(db):
  db.execute('BEGIN IMMEDIATE')
@@ -35,8 +38,9 @@ def one(db,q,a=()):
  x=db.execute(q,a).fetchone();return dict(x) if x else None
 def rows(db,q,a=()):return [dict(x) for x in db.execute(q,a)]
 def execute(db,subsystem,payload):
- from . import tenure,transfer,cleanup
- fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run}[subsystem]
+ from . import tenure,transfer,cleanup,competency_delivery
+ fn={'tenure':tenure.run,'transfer':transfer.run,'cleanup':cleanup.run,
+     'competency':competency_delivery.run,'competency_delivery':competency_delivery.run}[subsystem]
  with tx(db):
   result=fn(db,payload)
   db.execute('INSERT INTO events(subsystem,payload,result) VALUES(?,?,?)',(subsystem,json.dumps(payload,sort_keys=True,ensure_ascii=False),json.dumps(result,sort_keys=True,ensure_ascii=False)))
